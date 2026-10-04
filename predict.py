@@ -37,7 +37,30 @@ def predict_on_new_data(data_path: str, model_path: str = os.path.join("outputs"
 
     # Extract ID series
     customer_ids = clean_df[id_col] if id_col in clean_df.columns else pd.Series(clean_df.index, name=id_col)
-    X_new = clean_df.drop(columns=[c for c in ["Churn", id_col] if c in clean_df.columns])
+    X_new = clean_df.drop(columns=[c for c in ["Churn", "Churn Label", id_col] if c in clean_df.columns])
+
+    # Feature alignment
+    MODEL_NUM_COLS = ['SeniorCitizen', 'tenure', 'MonthlyCharges', 'TotalCharges']
+    MODEL_CAT_COLS = [
+        'gender', 'Partner', 'Dependents', 'PhoneService', 'MultipleLines',
+        'InternetService', 'OnlineSecurity', 'OnlineBackup', 'DeviceProtection',
+        'TechSupport', 'StreamingTV', 'StreamingMovies', 'Contract',
+        'PaperlessBilling', 'PaymentMethod'
+    ]
+
+    for col in MODEL_NUM_COLS:
+        if col not in X_new.columns:
+            X_new[col] = 0.0
+        else:
+            X_new[col] = pd.to_numeric(X_new[col], errors='coerce').fillna(0.0)
+
+    for col in MODEL_CAT_COLS:
+        if col not in X_new.columns:
+            X_new[col] = "Male" if col == "gender" else ("Month-to-month" if col == "Contract" else "No")
+        else:
+            X_new[col] = X_new[col].astype(str).fillna("No")
+
+    X_aligned = X_new[MODEL_NUM_COLS + MODEL_CAT_COLS]
 
     # Load trained model pipeline
     print(f"Loading trained pipeline from {model_path}...")
@@ -45,11 +68,11 @@ def predict_on_new_data(data_path: str, model_path: str = os.path.join("outputs"
 
     # Predict Churn Risk Probabilities
     print("Predicting churn probabilities...")
-    churn_probs = model.predict_proba(X_new)[:, 1]
+    churn_probs = model.predict_proba(X_aligned)[:, 1]
 
     # Run 0/1 Knapsack Optimization
     print(f"Running 0/1 Knapsack Retention Optimization (Budget: ${budget:,.2f})...")
-    df_opt_input = X_new.copy()
+    df_opt_input = X_aligned.copy()
     df_opt_input[id_col] = customer_ids.values
 
     optimizer = RetentionOptimizer(offer_success_rate=offer_success_rate, offer_cost_pct=0.15)

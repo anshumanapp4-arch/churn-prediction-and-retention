@@ -1,8 +1,13 @@
 import os
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
+
+try:
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+except ImportError:
+    plt = None
+    sns = None
 
 from sklearn.metrics import (
     roc_auc_score, roc_curve, precision_recall_curve, average_precision_score,
