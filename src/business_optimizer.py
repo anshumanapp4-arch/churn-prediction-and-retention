@@ -2,7 +2,12 @@ import os
 import numpy as np
 import pandas as pd
 from scipy.optimize import milp, LinearConstraint, Bounds
-import pulp
+
+try:
+    import pulp
+    _PULP_AVAILABLE = True
+except ImportError:
+    _PULP_AVAILABLE = False
 
 class RetentionOptimizer:
     """
@@ -76,13 +81,19 @@ class RetentionOptimizer:
             x_selected = x_selected * eligible_mask.astype(int)
             return x_selected
         else:
-            print("[RetentionOptimizer] MILP solver warning: fallback to PuLP solver.")
-            return self.solve_pulp_knapsack(df_opt, budget)
+            print("[RetentionOptimizer] MILP solver warning: fallback.")
+            if _PULP_AVAILABLE:
+                return self.solve_pulp_knapsack(df_opt, budget)
+            else:
+                return self.solve_greedy_heuristic(df_opt, budget)
 
     def solve_pulp_knapsack(self, df_opt: pd.DataFrame, budget: float) -> np.ndarray:
         """
         Solves 0/1 Knapsack using PuLP Integer Linear Programming.
         """
+        if not _PULP_AVAILABLE:
+            return self.solve_greedy_heuristic(df_opt, budget)
+
         prob = pulp.LpProblem("Retention_Optimization", pulp.LpMaximize)
         n = len(df_opt)
         

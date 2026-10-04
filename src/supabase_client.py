@@ -1,11 +1,20 @@
 import os
 import json
-from supabase import create_client, Client
+
+# Conditional import — supabase is NOT installed on Vercel to keep bundle small
+try:
+    from supabase import create_client, Client
+    _SUPABASE_AVAILABLE = True
+except ImportError:
+    _SUPABASE_AVAILABLE = False
+    Client = None
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://vwzwulyfvfdxjbadacvo.supabase.co")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3end1bHlmdmZkeGpiYWRhY3ZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTExMTExNsQsImV4cCI6MjEwNjY4NzE2NH0.fUPNjqxjigk2WmM68_rVciW6tQDL2yqAqmZne2i_dmc")
 
-def get_supabase_client() -> Client:
+def get_supabase_client():
+    if not _SUPABASE_AVAILABLE:
+        return None
     try:
         client = create_client(SUPABASE_URL, SUPABASE_KEY)
         return client
