@@ -55,6 +55,8 @@ HTML_TEMPLATE = """
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- SheetJS for client-side Excel/CSV parsing -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
     <style>
         :root {
@@ -377,6 +379,15 @@ HTML_TEMPLATE = """
 let lastResults = null;
 
 async function runAction(mode) {
+    // 1. Immediately display spinner container for instant UI responsiveness
+    document.getElementById('results-area').style.display = 'block';
+    document.getElementById('result-title').innerText = mode === 'predict' ? '⚡ Instant Prediction & Optimization' : '🏋️ Model Training & Optimization Results';
+    document.getElementById('table-container').innerHTML = `
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;"></div>
+            <p class="mt-3 text-muted fw-semibold">Processing Dataset & Executing Machine Learning Model...</p>
+        </div>`;
+
     const fileInput = document.getElementById('file-input');
     const budget = document.getElementById('budget').value;
     const successRate = document.getElementById('success_rate').value;
@@ -393,34 +404,33 @@ async function runAction(mode) {
 
     if (fileInput.files.length > 0) {
         const file = fileInput.files[0];
-        // Read file client-side to prevent Vercel 4.5MB request payload 413 error
-        if (file.name.toLowerCase().endsWith('.csv') || file.size > 2 * 1024 * 1024) {
-            try {
-                const text = await file.text();
-                // If larger than 2MB, sample top ~10,000 lines safely
-                let cleanText = text;
-                if (text.length > 2 * 1024 * 1024) {
-                    const lines = text.split('\n');
-                    cleanText = lines.slice(0, 8000).join('\n');
-                }
-                formData.append('csv_data', cleanText);
-            } catch (readErr) {
-                formData.append('file', file);
+        try {
+            let csvText = "";
+            const fileName = file.name.toLowerCase();
+            if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+                // Read Excel file client-side using SheetJS
+                const arrayBuffer = await file.arrayBuffer();
+                const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+                const firstSheetName = workbook.SheetNames[0];
+                csvText = XLSX.utils.sheet_to_csv(workbook.Sheets[firstSheetName]);
+            } else {
+                // Read CSV/Text file
+                csvText = await file.text();
             }
-        } else {
+
+            // If larger than 2MB, sample top ~8,000 lines safely to stay under Vercel payload limit
+            if (csvText.length > 2 * 1024 * 1024) {
+                const lines = csvText.split('\n');
+                csvText = lines.slice(0, 8000).join('\n');
+            }
+            formData.append('csv_data', csvText);
+        } catch (readErr) {
+            console.warn("Client-side file conversion fallback:", readErr);
             formData.append('file', file);
         }
     }
 
     const endpoint = mode === 'predict' ? '/api/predict' : '/api/train';
-    
-    document.getElementById('results-area').style.display = 'block';
-    document.getElementById('result-title').innerText = mode === 'predict' ? '⚡ Instant Prediction & Optimization' : '🏋️ Model Training & Optimization Results';
-    document.getElementById('table-container').innerHTML = `
-        <div class="text-center py-5">
-            <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;"></div>
-            <p class="mt-3 text-muted fw-semibold">Running Machine Learning Model & 0/1 Knapsack Optimizer...</p>
-        </div>`;
 
     try {
         const response = await fetch(endpoint, {
@@ -434,7 +444,7 @@ async function runAction(mode) {
         try {
             data = JSON.parse(responseText);
         } catch (jsonErr) {
-            throw new Error(`Server returned invalid non-JSON response (${response.status}): ${responseText.substring(0, 300)}`);
+            throw new Error(`Server returned non-JSON response (${response.status}): ${responseText.substring(0, 200)}`);
         }
 
         if (!response.ok || data.error) {
@@ -459,7 +469,6 @@ async function runAction(mode) {
         document.getElementById('table-container').innerHTML = `
             <div class="alert alert-danger shadow-sm">
                 <i class="fa-solid fa-triangle-exclamation me-2"></i><b>API Error:</b> ${err.message}
-            </div>`;
     }
 }
 
