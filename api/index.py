@@ -420,8 +420,8 @@ async function runAction(mode) {
 
             // If larger than 2MB, sample top ~8,000 lines safely to stay under Vercel payload limit
             if (csvText.length > 2 * 1024 * 1024) {
-                const lines = csvText.split('\n');
-                csvText = lines.slice(0, 8000).join('\n');
+                const lines = csvText.split('\\n');
+                csvText = lines.slice(0, 8000).join('\\n');
             }
             formData.append('csv_data', csvText);
         } catch (readErr) {
