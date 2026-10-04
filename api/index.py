@@ -381,7 +381,7 @@ let lastResults = null;
 async function runAction(mode) {
     // 1. Immediately display spinner container for instant UI responsiveness
     document.getElementById('results-area').style.display = 'block';
-    document.getElementById('result-title').innerText = mode === 'predict' ? '⚡ Instant Prediction & Optimization' : '🏋️ Model Training & Optimization Results';
+    document.getElementById('result-title').innerText = mode === 'predict' ? 'Instant Prediction & Optimization' : 'Model Training & Optimization Results';
     document.getElementById('table-container').innerHTML = `
         <div class="text-center py-5">
             <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;"></div>
