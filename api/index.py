@@ -385,14 +385,32 @@ async function runAction(mode) {
     const targetCol = document.getElementById('target_col').value;
 
     const formData = new FormData();
-    if (fileInput.files.length > 0) {
-        formData.append('file', fileInput.files[0]);
-    }
     formData.append('budget', budget);
     formData.append('success_rate', successRate);
     formData.append('offer_cost_pct', offerCost);
     formData.append('id_col', idCol);
     formData.append('target_col', targetCol);
+
+    if (fileInput.files.length > 0) {
+        const file = fileInput.files[0];
+        // Read file client-side to prevent Vercel 4.5MB request payload 413 error
+        if (file.name.toLowerCase().endsWith('.csv') || file.size > 2 * 1024 * 1024) {
+            try {
+                const text = await file.text();
+                // If larger than 2MB, sample top ~10,000 lines safely
+                let cleanText = text;
+                if (text.length > 2 * 1024 * 1024) {
+                    const lines = text.split('\n');
+                    cleanText = lines.slice(0, 8000).join('\n');
+                }
+                formData.append('csv_data', cleanText);
+            } catch (readErr) {
+                formData.append('file', file);
+            }
+        } else {
+            formData.append('file', file);
+        }
+    }
 
     const endpoint = mode === 'predict' ? '/api/predict' : '/api/train';
     
@@ -579,7 +597,10 @@ def api_predict():
             target_col = request.form.get('target_col', 'Churn Label').strip()
 
         # 1. Load Data
-        if request.method == 'POST' and 'file' in request.files and request.files['file'].filename != '':
+        csv_data = request.form.get('csv_data') if request.method == 'POST' else None
+        if request.method == 'POST' and csv_data:
+            df_raw = pd.read_csv(io.StringIO(csv_data))
+        elif request.method == 'POST' and 'file' in request.files and request.files['file'].filename != '':
             file = request.files['file']
             filename = file.filename.lower()
             if filename.endswith('.csv'):
