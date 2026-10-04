@@ -528,6 +528,7 @@ def get_model():
     Safely loads or trains the ML model pipeline. Handles read-only Vercel environment.
     """
     model_paths = [
+        os.path.join(os.path.dirname(__file__), 'trained_model.joblib'),
         os.path.join(os.path.dirname(__file__), '..', 'outputs', 'trained_model.joblib'),
         os.path.join(tempfile.gettempdir(), 'trained_model.joblib')
     ]
@@ -535,13 +536,15 @@ def get_model():
     for mp in model_paths:
         if os.path.exists(mp):
             try:
-                return joblib.load(mp)
+                model = joblib.load(mp)
+                print(f"[ModelLoad] Loaded model successfully from {mp}")
+                return model
             except Exception as e:
                 print(f"[ModelLoad] Warning loading {mp}: {e}")
 
-    # If no model found, train on built-in Telco dataset
+    # If no model found, train on light sample dataset
     print("[ModelLoad] Training fallback Logistic Regression model on sample data...")
-    sample_df = generate_telco_churn_dataset()
+    sample_df = generate_telco_churn_dataset(n_samples=1000)
     cleaner = DataCleaner(target_col='Churn Label', id_col='CustomerID')
     clean_sample = cleaner.clean_data(sample_df)
 
@@ -560,7 +563,6 @@ def get_model():
     return model
 
 @app.route('/api/predict', methods=['POST'])
-
 def api_predict():
     try:
         budget = float(request.form.get('budget', 15000.0))
@@ -584,7 +586,7 @@ def api_predict():
             if os.path.exists(sample_path):
                 df_raw = pd.read_csv(sample_path)
             else:
-                df_raw = generate_telco_churn_dataset()
+                df_raw = generate_telco_churn_dataset(n_samples=1000)
 
         if df_raw.empty:
             return jsonify({"error": "The uploaded dataset is empty."}), 400
@@ -646,16 +648,16 @@ def api_predict():
         except Exception as se:
             print(f"[Supabase] Notice logging campaign: {se}")
 
-        # 6. Format JSON Output
-        selected_candidates = df_results[df_results['selected_exact'] == 1].head(50)
+        # 6. Format JSON Output (capped at top 35 selected candidates for lightweight payload)
+        selected_candidates = df_results[df_results['selected_exact'] == 1].head(35)
         sample_rows = []
         for _, row in selected_candidates.iterrows():
             sample_rows.append({
                 "id": str(row[actual_id]),
-                "prob": float(row['churn_prob']),
-                "V_i": float(row['V_i']),
-                "c_i": float(row['c_i']),
-                "E_i": float(row['E_i'])
+                "prob": round(float(row['churn_prob']), 4),
+                "V_i": round(float(row['V_i']), 2),
+                "c_i": round(float(row['c_i']), 2),
+                "E_i": round(float(row['E_i']), 2)
             })
 
         return jsonify({
