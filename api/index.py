@@ -562,17 +562,24 @@ def get_model():
 
     return model
 
-@app.route('/api/predict', methods=['POST'])
+@app.route('/api/predict', methods=['GET', 'POST'])
 def api_predict():
     try:
-        budget = float(request.form.get('budget', 15000.0))
-        success_rate = float(request.form.get('success_rate', 0.30))
-        offer_cost_pct = float(request.form.get('offer_cost_pct', 0.15))
-        id_col = request.form.get('id_col', 'CustomerID').strip()
-        target_col = request.form.get('target_col', 'Churn Label').strip()
+        if request.method == 'GET':
+            budget = float(request.args.get('budget', 15000.0))
+            success_rate = float(request.args.get('success_rate', 0.30))
+            offer_cost_pct = float(request.args.get('offer_cost_pct', 0.15))
+            id_col = request.args.get('id_col', 'CustomerID').strip()
+            target_col = request.args.get('target_col', 'Churn Label').strip()
+        else:
+            budget = float(request.form.get('budget', 15000.0))
+            success_rate = float(request.form.get('success_rate', 0.30))
+            offer_cost_pct = float(request.form.get('offer_cost_pct', 0.15))
+            id_col = request.form.get('id_col', 'CustomerID').strip()
+            target_col = request.form.get('target_col', 'Churn Label').strip()
 
         # 1. Load Data
-        if 'file' in request.files and request.files['file'].filename != '':
+        if request.method == 'POST' and 'file' in request.files and request.files['file'].filename != '':
             file = request.files['file']
             filename = file.filename.lower()
             if filename.endswith('.csv'):
@@ -638,7 +645,7 @@ def api_predict():
         # 5. Log to Supabase (non-blocking safety)
         try:
             log_campaign_to_supabase({
-                "mode": "Instant Prediction (API)",
+                "mode": f"Prediction ({request.method})",
                 "total_customers": int(len(clean_df)),
                 "budget": float(budget),
                 "targeted_count": int(summary['total_targeted']),
@@ -661,6 +668,7 @@ def api_predict():
             })
 
         return jsonify({
+            "status": "success",
             "summary": {
                 "total_customers": int(len(clean_df)),
                 "total_targeted": int(summary['total_targeted']),
@@ -674,7 +682,7 @@ def api_predict():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/train', methods=['POST'])
+@app.route('/api/train', methods=['GET', 'POST'])
 def api_train():
     return api_predict()
 
