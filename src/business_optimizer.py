@@ -28,13 +28,18 @@ class RetentionOptimizer:
         df = df_test.copy().reset_index(drop=True)
         df['churn_prob'] = churn_probs
 
-        # Customer Value Vi (Annual Value: MonthlyCharges * 12 or TotalCharges if MonthlyCharges missing)
+        # Customer Value Vi (Annual Value)
         if 'MonthlyCharges' in df.columns:
             df['V_i'] = df['MonthlyCharges'] * 12.0
         elif 'total_charges' in df.columns or 'TotalCharges' in df.columns:
             df['V_i'] = df.get('TotalCharges', df.get('total_charges', 1000.0))
         else:
-            df['V_i'] = 1000.0  # Fallback default annual value
+            charge_cols = [c for c in df.columns if any(k in c.lower() for k in ['monthly', 'charge', 'amount', 'fee', 'val', 'price', 'bill', 'revenue'])]
+            if len(charge_cols) > 0:
+                val_series = pd.to_numeric(df[charge_cols[0]], errors='coerce').fillna(100.0)
+                df['V_i'] = val_series * 12.0 if val_series.mean() < 500 else val_series
+            else:
+                df['V_i'] = 1000.0  # Fallback default annual value
 
         # Offer Cost ci
         if self.flat_offer_cost is not None:

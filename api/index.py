@@ -638,31 +638,28 @@ def api_predict():
         drop_cols = [c for c in [target_col, 'Churn', 'Churn Label', actual_id] if c in clean_df.columns]
         X_features = clean_df.drop(columns=drop_cols)
 
-        # Feature alignment to ensure compatibility with trained model on any CSV
-        MODEL_NUM_COLS = ['SeniorCitizen', 'tenure', 'MonthlyCharges', 'TotalCharges']
-        MODEL_CAT_COLS = [
-            'gender', 'Partner', 'Dependents', 'PhoneService', 'MultipleLines',
-            'InternetService', 'OnlineSecurity', 'OnlineBackup', 'DeviceProtection',
-            'TechSupport', 'StreamingTV', 'StreamingMovies', 'Contract',
-            'PaperlessBilling', 'PaymentMethod'
-        ]
-        
-        for col in MODEL_NUM_COLS:
-            if col not in X_features.columns:
-                X_features[col] = 0.0
-            else:
-                X_features[col] = pd.to_numeric(X_features[col], errors='coerce').fillna(0.0)
-
-        for col in MODEL_CAT_COLS:
-            if col not in X_features.columns:
-                X_features[col] = "Male" if col == "gender" else ("Month-to-month" if col == "Contract" else "No")
-            else:
-                X_features[col] = X_features[col].astype(str).fillna("No")
-
-        X_aligned = X_features[MODEL_NUM_COLS + MODEL_CAT_COLS]
-
-        # 3. Model Prediction
+        # 3. Model Prediction & Dynamic Feature Extraction
         model = get_model()
+
+        if hasattr(model, 'feature_names_in_'):
+            expected_features = list(model.feature_names_in_)
+        elif hasattr(model, 'named_steps') and 'prep' in model.named_steps and hasattr(model.named_steps['prep'], 'feature_names_in_'):
+            expected_features = list(model.named_steps['prep'].feature_names_in_)
+        else:
+            expected_features = [c for c in clean_df.columns if c not in [target_col, 'Churn', 'Churn Label', actual_id]]
+
+        aligned_data = {}
+        for col in expected_features:
+            if col in clean_df.columns:
+                aligned_data[col] = clean_df[col].values
+            else:
+                if any(k in col.lower() for k in ['charge', 'tenure', 'age', 'amount', 'fee', 'count', 'score', 'num', 'total', 'price', 'val']):
+                    aligned_data[col] = np.zeros(len(clean_df))
+                else:
+                    aligned_data[col] = np.full(len(clean_df), "No")
+
+        X_aligned = pd.DataFrame(aligned_data, index=clean_df.index)
+
         churn_probs = model.predict_proba(X_aligned)[:, 1]
 
         # 4. 0/1 Knapsack Optimization

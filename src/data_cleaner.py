@@ -81,11 +81,19 @@ class DataCleaner:
 
         # 5. Encode Target Column into Binary 1/0
         if self.target_col in df.columns:
-            target_series = df[self.target_col].astype(str).str.strip().str.lower()
-            mapping = {'yes': 1, 'true': 1, '1': 1, 'churned': 1, 'no': 0, 'false': 0, '0': 0, 'retained': 0}
-            df[self.target_col] = target_series.map(mapping)
-            df = df.dropna(subset=[self.target_col])
-            df[self.target_col] = df[self.target_col].astype(int)
+            s = df[self.target_col]
+            if pd.api.types.is_numeric_dtype(s):
+                df[self.target_col] = (s > 0).astype(int)
+            else:
+                str_s = s.astype(str).str.strip().str.lower()
+                mapping = {
+                    '1': 1, '1.0': 1, 'yes': 1, 'true': 1, 'churned': 1, 'churn': 1, 'leave': 1, 'left': 1, 'exited': 1, 'positive': 1,
+                    '0': 0, '0.0': 0, 'no': 0, 'false': 0, 'retained': 0, 'stayed': 0, 'keep': 0, 'stay': 0, 'negative': 0
+                }
+                mapped = str_s.map(mapping)
+                if mapped.isna().sum() > 0:
+                    mapped = mapped.fillna(pd.to_numeric(s, errors='coerce')).fillna(0)
+                df[self.target_col] = mapped.astype(int)
 
         return df
 
