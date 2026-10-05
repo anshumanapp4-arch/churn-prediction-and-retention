@@ -25,8 +25,11 @@ class ModelTrainer:
         """
         y = df[self.target_col].values
         
-        # Keep track of Customer IDs separately
-        ids = df[self.id_col] if self.id_col in df.columns else pd.Series(df.index)
+        # Keep track of Customer IDs separately as a numpy array for safe indexing
+        if self.id_col in df.columns:
+            ids = df[self.id_col].to_numpy()
+        else:
+            ids = np.array(df.index)
         X = df.drop(columns=[c for c in [self.target_col, self.id_col] if c in df.columns])
 
         X_train, X_test, y_train, y_test, ids_train, ids_test = train_test_split(
@@ -36,7 +39,7 @@ class ModelTrainer:
             random_state=self.random_state
         )
 
-        return X_train, X_test, y_train, y_test, ids_train, ids_test
+        return X_train, X_test, y_train, y_test, pd.Series(ids_train), pd.Series(ids_test)
 
     def train_logistic_regression(self, X_train, y_train, preprocessor, tune_c=False):
         """
