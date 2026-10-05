@@ -1,5 +1,46 @@
+# Byte-compiled / optimized / DLL files
 __pycache__/
-*.pyc
-.vercel
+*.py[cod]
+*$py.class
+
+# Cextensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Vercel & deployment caches
+.vercel/
+
+# Environment variables
 .env
-.pytest_cache/
+.env.local
+
+# IDE & Editor caches
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
