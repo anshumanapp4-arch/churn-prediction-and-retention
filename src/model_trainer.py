@@ -23,23 +23,31 @@ class ModelTrainer:
         Stratified train/test split.
         Returns X_train, X_test, y_train, y_test, ids_train, ids_test.
         """
-        y = df[self.target_col].values
-        
-        # Keep track of Customer IDs separately as a numpy array for safe indexing
+        y = np.asarray(df[self.target_col].values)
         if self.id_col in df.columns:
-            ids = df[self.id_col].to_numpy()
+            ids = np.asarray(df[self.id_col].values)
         else:
-            ids = np.array(df.index)
-        X = df.drop(columns=[c for c in [self.target_col, self.id_col] if c in df.columns])
+            ids = np.asarray(df.index.to_numpy())
 
-        X_train, X_test, y_train, y_test, ids_train, ids_test = train_test_split(
-            X, y, ids,
+        X = df.drop(columns=[c for c in [self.target_col, self.id_col] if c in df.columns]).copy().reset_index(drop=True)
+
+        # Split using pure integer indices to guarantee compatibility with all Pandas/PyArrow/sklearn versions
+        indices = np.arange(len(df))
+        train_idx, test_idx = train_test_split(
+            indices,
             test_size=self.test_size,
             stratify=y,
             random_state=self.random_state
         )
 
-        return X_train, X_test, y_train, y_test, pd.Series(ids_train), pd.Series(ids_test)
+        X_train = X.iloc[train_idx].reset_index(drop=True)
+        X_test = X.iloc[test_idx].reset_index(drop=True)
+        y_train = y[train_idx]
+        y_test = y[test_idx]
+        ids_train = pd.Series(ids[train_idx])
+        ids_test = pd.Series(ids[test_idx])
+
+        return X_train, X_test, y_train, y_test, ids_train, ids_test
 
     def train_logistic_regression(self, X_train, y_train, preprocessor, tune_c=False):
         """

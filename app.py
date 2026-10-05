@@ -139,14 +139,37 @@ if df_raw is not None:
 
                     actual_id_col = id_col_input if id_col_input in clean_df.columns else ('customerID' if 'customerID' in clean_df.columns else clean_df.columns[0])
                     ids = clean_df[actual_id_col] if actual_id_col in clean_df.columns else pd.Series(clean_df.index)
-                    X_features = clean_df.drop(columns=[c for c in [target_col_input, 'Churn', actual_id_col] if c in clean_df.columns])
+                    X_features = clean_df.drop(columns=[c for c in [target_col_input, 'Churn', 'Churn Label', actual_id_col] if c in clean_df.columns])
+
+                    # Feature alignment to ensure compatibility with trained ColumnTransformer
+                    MODEL_NUM_COLS = ['SeniorCitizen', 'tenure', 'MonthlyCharges', 'TotalCharges']
+                    MODEL_CAT_COLS = [
+                        'gender', 'Partner', 'Dependents', 'PhoneService', 'MultipleLines',
+                        'InternetService', 'OnlineSecurity', 'OnlineBackup', 'DeviceProtection',
+                        'TechSupport', 'StreamingTV', 'StreamingMovies', 'Contract',
+                        'PaperlessBilling', 'PaymentMethod'
+                    ]
+
+                    for col in MODEL_NUM_COLS:
+                        if col not in X_features.columns:
+                            X_features[col] = 0.0
+                        else:
+                            X_features[col] = pd.to_numeric(X_features[col], errors='coerce').fillna(0.0)
+
+                    for col in MODEL_CAT_COLS:
+                        if col not in X_features.columns:
+                            X_features[col] = "Male" if col == "gender" else ("Month-to-month" if col == "Contract" else "No")
+                        else:
+                            X_features[col] = X_features[col].astype(str).fillna("No")
+
+                    X_aligned = X_features[MODEL_NUM_COLS + MODEL_CAT_COLS]
 
                     # Load model & Predict
                     model = joblib.load(model_path)
-                    churn_probs = model.predict_proba(X_features)[:, 1]
+                    churn_probs = model.predict_proba(X_aligned)[:, 1]
 
                     # Optimize
-                    df_opt_input = X_features.copy()
+                    df_opt_input = X_aligned.copy()
                     df_opt_input[actual_id_col] = ids.values
 
                     optimizer = RetentionOptimizer(offer_success_rate=success_rate_input, offer_cost_pct=offer_cost_pct_input)
